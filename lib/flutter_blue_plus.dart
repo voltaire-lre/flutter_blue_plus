@@ -5,6 +5,7 @@
 library flutter_blue_plus;
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';

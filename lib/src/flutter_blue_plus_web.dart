@@ -15,10 +15,25 @@ class FlutterBluePlusWeb {
     if (method == "setOptions") {
     } else if (method == "flutterRestart") {
       // disconnect all devices
+      web.FlutterWebBluetooth.instance.devices.forEach((device) {
+        device.forEach((element) {
+          element.disconnect();
+        });
+      });
+      var remaining = await web.FlutterWebBluetooth.instance.devices.first;
+      return remaining.length;
     } else if (method == "connectedCount") {
     } else if (method == "setLogLevel") {
     } else if (method == "isSupported") {
     } else if (method == "getAdapterState") {
+      bool supported = web.FlutterWebBluetooth.instance.isBluetoothApiSupported;
+      Map<String, dynamic> map = {};
+      if (!supported) {
+        map["adapter_state"] = BmAdapterStateEnum.unavailable.index;
+      } else {
+        map["adapter_state"] = BmAdapterStateEnum.on.index;
+      }
+      return map;
     } else if (method == "turnOn") {
     } else if (method == "turnOff") {
     } else if (method == "startScan") {
@@ -56,12 +71,128 @@ class FlutterBluePlusWeb {
         rssi: 0,
       );
 
-      _methodCallHandler(MethodCall("OnScanResult", adv.toMap()));
+      var advMap = adv.toMap();
+      advMap["remote_id"] = device.id;
+
+      _methodCallHandler(MethodCall("OnScanResponse", {
+        "advertisements": [advMap]
+      }));
+      print("OnScanResponse done : ${adv.toMap()}");
+      return true;
     } else if (method == "stopScan") {
+      //TODO should we stop something ?
+      return true;
     } else if (method == "getSystemDevices") {
+      List<Map<String, dynamic>> devices = [];
+      var webDevices = await web.FlutterWebBluetooth.instance.devices.first;
+      webDevices.forEach((device) {
+        devices.add({
+          "id": device.id,
+          "platform_name": device.name,
+        });
+      });
+      var response = {"devices": devices};
+      return response;
     } else if (method == "connect") {
+      String remoteId = ""; //arguments["remote_id"];
+      bool autoConnect = false; //arguments["auto_connect"];
+      arguments.forEach((key, value) {
+        if (key == "remote_id") {
+          remoteId = value;
+        } else if (key == "auto_connect") {
+          autoConnect = value == 1;
+        }
+      });
+      //TODO check if device is known
+      web.BluetoothDevice device = _devices[DeviceIdentifier(remoteId)]!;
+
+      try {
+        var connected = await device.connected.first;
+        if (connected) {
+          //nothing has changed
+          return false;
+        }
+        await device.connect();
+        device.connected.first.then((value) {
+          _methodCallHandler(MethodCall("OnConnectionStateChanged", {
+            "remote_id": remoteId,
+            "connection_state":
+                value ? BmConnectionStateEnum.connected.index : BmConnectionStateEnum.disconnected.index,
+            "disconnect_reason_code": 0,
+            "disconnect_reason_string": "",
+          }));
+        });
+
+        return true;
+      } on web.NetworkError {
+        throw FlutterBluePlusException(ErrorPlatform.web, "connect", -1, "network error");
+      } on StateError {
+        throw FlutterBluePlusException(ErrorPlatform.web, "connect", -1, "state error");
+      } catch (e) {
+        throw FlutterBluePlusException(ErrorPlatform.web, "connect", -1, e.toString());
+      }
     } else if (method == "disconnect") {
     } else if (method == "discoverServices") {
+      var remoteId = arguments as String;
+      web.BluetoothDevice device = _devices[DeviceIdentifier(remoteId)]!;
+      device.discoverServices().then((services) async {
+        List<Map<String, dynamic>> servicesList = [];
+
+        for (var service in services) {
+          var characs = await service.getCharacteristics();
+          List<dynamic> characList = [];
+          for (var charac in characs) {
+            List<dynamic> descriptorsList = [];
+            /*
+            var descriptors = await charac.getDescriptors();
+            
+            for (var descriptor in descriptors) {
+              descriptorsList.add({
+                "remote_id": remoteId,
+                "service_uuid": service.uuid,
+                "characteristic_uuid": charac.uuid,
+                "descriptor_uuid": descriptor.uuid,
+              });
+            }
+            */
+            characList.add({
+              "remote_id": remoteId,
+              "service_uuid": service.uuid,
+              "characteristic_uuid": charac.uuid,
+              "properties": {
+                'broadcast': charac.properties.broadcast ? 1 : 0,
+                'read': charac.properties.read ? 1 : 0,
+                'write_without_response': charac.properties.writeWithoutResponse ? 1 : 0,
+                'write': charac.properties.write ? 1 : 0,
+                'notify': charac.properties.notify ? 1 : 0,
+                'indicate': charac.properties.indicate ? 1 : 0,
+                'authenticated_signed_writes': charac.properties.authenticatedSignedWrites ? 1 : 0,
+                'extended_properties': charac.properties.hasProperties ? 1 : 0, //TODO check if it is correct
+                'notify_encryption_required': 0, //TODO search how to get this information
+                'indicate_encryption_required': 0, //TODO search how to get this information
+              },
+              "descriptors": descriptorsList,
+            });
+          }
+
+          servicesList.add({
+            "remote_id": remoteId,
+            "service_uuid": service.uuid,
+            "is_primary": service.isPrimary,
+            "characteristics": characList,
+            "included_services": [], //TODO get information
+          });
+        }
+
+        _methodCallHandler(MethodCall("OnDiscoveredServices", {
+          "remote_id": remoteId,
+          "services": servicesList,
+          "success": 1, //TODO deal with errors
+          "error_code": 0,
+          "error_string": "",
+        }));
+      });
+      return true;
     } else if (method == "readCharacteristic") {
     } else if (method == "writeCharacteristic") {
     } else if (method == "readDescriptor") {
@@ -69,6 +200,23 @@ class FlutterBluePlusWeb {
     } else if (method == "setNotifyValue") {
     } else if (method == "requestMtu") {
     } else if (method == "readRssi") {
+      var remoteId = arguments as String;
+      web.BluetoothDevice device = _devices[DeviceIdentifier(remoteId)]!;
+      if (device.hasWatchAdvertisements()) {
+        device.watchAdvertisements();
+        device.advertisements.listen((event) {
+          _methodCallHandler(MethodCall("OnReadRssi", {
+            "remote_id": remoteId,
+            "rssi": event.rssi,
+            "success": 1,
+            "error_code": 0,
+            "error_string": "",
+          }));
+        });
+      } else {
+        throw FlutterBluePlusException(ErrorPlatform.web, "readRssi", -1, "not supported on web");
+      }
+      return true;
     } else if (method == "requestConnectionPriority") {
       // unsupported
       throw FlutterBluePlusException(ErrorPlatform.web, "requestConnectionPriority", -1, "not supported on web");

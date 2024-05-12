@@ -52,8 +52,8 @@ class BluetoothDevice {
   ///   - prevents accidentally creating duplicate subscriptions on each reconnection.
   ///   - [next] if true, the the stream will be canceled only on the *next* disconnection.
   ///     This is useful if you setup your subscriptions before you connect.
-  ///   - [delayed] Note: This option is only meant for `connectionState` subscriptions.  
-  ///     When `true`, we cancel after a small delay. This ensures the `connectionState` 
+  ///   - [delayed] Note: This option is only meant for `connectionState` subscriptions.
+  ///     When `true`, we cancel after a small delay. This ensures the `connectionState`
   ///     listener receives the `disconnected` event.
   void cancelWhenDisconnected(StreamSubscription subscription, {bool next = false, bool delayed = false}) {
     if (isConnected == false && next == false) {
@@ -63,7 +63,7 @@ class BluetoothDevice {
       FlutterBluePlus._delayedSubscriptions[remoteId]!.add(subscription);
     } else {
       FlutterBluePlus._deviceSubscriptions[remoteId] ??= [];
-      FlutterBluePlus._deviceSubscriptions[remoteId]!.add(subscription);      
+      FlutterBluePlus._deviceSubscriptions[remoteId]!.add(subscription);
     }
   }
 
@@ -267,7 +267,7 @@ class BluetoothDevice {
     // in order to match iOS behavior on all platforms,
     // we always listen to the Services Changed characteristic if it exists.
     if (subscribeToServicesChanged) {
-      if (Platform.isIOS == false && Platform.isMacOS == false) {
+      if (kIsWeb || Platform.isIOS == false && Platform.isMacOS == false) {
         BluetoothCharacteristic? c = _servicesChangedCharacteristic;
         if (c != null && (c.properties.notify || c.properties.indicate) && c.isNotifying == false) {
           await c.setNotifyValue(true);
@@ -408,7 +408,7 @@ class BluetoothDevice {
       // a race condition that can cause `discoverServices` to timeout or fail.
       //
       // Note: This hack is only needed for devices that automatically send an
-      // MTU update right after connection. If your device does not do that, 
+      // MTU update right after connection. If your device does not do that,
       // you can set this delay to zero. Other people may need to increase it!
       //
       // The race condition goes like this:
@@ -418,7 +418,7 @@ class BluetoothDevice {
       //  4. the user then calls `discoverServices`, thinking that `requestMtu` has finished
       //  5. in reality, `requestMtu` is still happening, and the call to `discoverServices` will fail/timeout
       //
-      // Adding delay before we call `requestMtu` helps ensure 
+      // Adding delay before we call `requestMtu` helps ensure
       // that the automatic mtu update has already happened.
       await Future.delayed(Duration(milliseconds: (predelay * 1000).toInt()));
     }

@@ -96,18 +96,98 @@ class BmScanSettings {
     return data;
   }
 
-  factory BmScanSettings.fromMap(Map<dynamic, dynamic> json) {
+  factory BmScanSettings.fromMap(Map<dynamic, dynamic> jsonValue) {
+    if (kIsWeb) {
+      var newJSon = LinkedHashMap<String, dynamic>();
+
+      var with_services = <Guid>[];
+      var with_remote_ids = <String>[];
+      var with_names = <String>[];
+      var with_keywords = <String>[];
+      var with_msd = <BmMsdFilter>[];
+      var with_service_data = <BmServiceDataFilter>[];
+      var continuous_updates = false;
+      var continuous_divisor = 1;
+      var android_scan_mode = 2;
+      var android_uses_fine_location = false;
+
+      jsonValue.forEach((key, value) {
+        if (key == 'with_services') {
+          (value as List<dynamic>).forEach((element) {
+            with_services.add(Guid(element.toString()));
+          });
+        }
+        if (key == 'with_remote_ids') {
+          (value as List<dynamic>).forEach((element) {
+            with_remote_ids.add(element.toString());
+          });
+        }
+        if (key == 'with_names') {
+          (value as List<dynamic>).forEach((element) {
+            with_names.add(element.toString());
+          });
+        }
+        if (key == 'with_keywords') {
+          (value as List<dynamic>).forEach((element) {
+            with_keywords.add(element.toString());
+          });
+        }
+        if (key == 'with_msd') {
+          (value as List<dynamic>).forEach((element) {
+            with_msd.add(BmMsdFilter(
+              element['manufacturer_id'],
+              _hexDecode(element['data']),
+              _hexDecode(element['mask']),
+            ));
+          });
+        }
+        if (key == 'with_service_data') {
+          (value as List<dynamic>).forEach((element) {
+            with_service_data.add(BmServiceDataFilter(
+              Guid(element['service']),
+              _hexDecode(element['data']),
+              _hexDecode(element['mask']),
+            ));
+          });
+        }
+        if (key == 'continuous_updates') {
+          continuous_updates = value as bool;
+        }
+        if (key == 'continuous_divisor') {
+          continuous_divisor = value as int;
+        }
+        if (key == 'android_scan_mode') {
+          android_scan_mode = value as int;
+        }
+        if (key == 'android_uses_fine_location') {
+          android_uses_fine_location = value as bool;
+        }
+      });
+
+      return BmScanSettings(
+        withServices: with_services,
+        withRemoteIds: with_remote_ids,
+        withNames: with_names,
+        withKeywords: with_keywords,
+        withMsd: with_msd,
+        withServiceData: with_service_data,
+        continuousUpdates: continuous_updates,
+        continuousDivisor: continuous_divisor,
+        androidScanMode: android_scan_mode,
+        androidUsesFineLocation: android_uses_fine_location,
+      );
+    }
     return BmScanSettings(
-      withServices: json['with_services'],
-      withRemoteIds: json['with_remote_ids'],
-      withNames: json['with_names'],
-      withKeywords: json['with_keywords'],
-      withMsd: json['with_msd'],
-      withServiceData: json['with_service_data'],
-      continuousUpdates: json['continuous_updates'],
-      continuousDivisor: json['continuous_divisor'],
-      androidScanMode: json['android_scan_mode'],
-      androidUsesFineLocation: json['android_uses_fine_location'],
+      withServices: jsonValue['with_services'],
+      withRemoteIds: jsonValue['with_remote_ids'],
+      withNames: jsonValue['with_names'],
+      withKeywords: jsonValue['with_keywords'],
+      withMsd: jsonValue['with_msd'],
+      withServiceData: jsonValue['with_service_data'],
+      continuousUpdates: jsonValue['continuous_updates'],
+      continuousDivisor: jsonValue['continuous_divisor'],
+      androidScanMode: jsonValue['android_scan_mode'],
+      androidUsesFineLocation: jsonValue['android_uses_fine_location'],
     );
   }
 }
@@ -174,7 +254,7 @@ class BmScanAdvertisement {
       rssi: json['rssi'] != null ? json['rssi'] : 0,
     );
   }
-  
+
   Map<dynamic, dynamic> toMap() {
     final Map<dynamic, dynamic> data = {};
     data['remote_id'] = remoteId;

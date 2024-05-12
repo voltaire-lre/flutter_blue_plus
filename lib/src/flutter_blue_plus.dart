@@ -241,7 +241,7 @@ class FlutterBluePlus {
 
     // Note: `withKeywords` is not compatible with other filters on android
     // because it is implemented in custom fbp code, not android code
-    assert(!(Platform.isAndroid && withKeywords.isNotEmpty && hasOtherFilter),
+    assert(kIsWeb || !(Platform.isAndroid && withKeywords.isNotEmpty && hasOtherFilter),
         "withKeywords is not compatible with other filters on Android");
 
     // only allow a single task to call
@@ -347,12 +347,12 @@ class FlutterBluePlus {
     }
   }
 
-  /// Stops a scan for Bluetooth Low Energy devices 
+  /// Stops a scan for Bluetooth Low Energy devices
   static Future<void> stopScan() async {
     _Mutex mtx = _MutexFactory.getMutexForKey("scan");
     await mtx.take();
     try {
-      if(isScanningNow) {
+      if (isScanningNow) {
         await _stopScan();
       } else if (_logLevel.index >= LogLevel.info.index) {
         print("[FBP] stopScan: already stopped");
@@ -411,16 +411,21 @@ class FlutterBluePlus {
 
     // set platform method handler
     if (kIsWeb) {
-        FlutterBluePlusWeb.setMethodCallHandler(_methodCallHandler);
+      FlutterBluePlusWeb.setMethodCallHandler(_methodCallHandler);
     } else {
-        _methodChannel.setMethodCallHandler(_methodCallHandler);
+      _methodChannel.setMethodCallHandler(_methodCallHandler);
     }
 
     // flutter restart - wait for all devices to disconnect
-    if ((await _methodChannel.invokeMethod('flutterRestart')) != 0) {
-      await Future.delayed(Duration(milliseconds: 50));
-      while ((await _methodChannel.invokeMethod('connectedCount')) != 0) {
+    if (kIsWeb) {
+      await FlutterBluePlusWeb.invokeMethod('flutterRestart');
+      //TODO wait for all devices to disconnect
+    } else {
+      if ((await _methodChannel.invokeMethod('flutterRestart')) != 0) {
         await Future.delayed(Duration(milliseconds: 50));
+        while ((await _methodChannel.invokeMethod('connectedCount')) != 0) {
+          await Future.delayed(Duration(milliseconds: 50));
+        }
       }
     }
   }
@@ -604,9 +609,9 @@ class FlutterBluePlus {
 
       // invoke
       if (kIsWeb) {
-          out = await FlutterBluePlusWeb.invokeMethod(method, arguments);
+        out = await FlutterBluePlusWeb.invokeMethod(method, arguments);
       } else {
-          out = await _methodChannel.invokeMethod(method, arguments);
+        out = await _methodChannel.invokeMethod(method, arguments);
       }
 
       // log result
